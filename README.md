@@ -125,6 +125,24 @@ Output: `.frame-master/build`
 
 ---
 
+## 📄 TypeScript Path Aliases
+
+Short import aliases are pre-configured in `tsconfig.json` for the most common paths:
+
+| Alias                  | Resolves to                                                         | Example use                                         |
+| ---------------------- | ------------------------------------------------------------------- | --------------------------------------------------- |
+| `@images/*`            | `images/*`                                                          | `import Logo from "@images/logo.png"`               |
+| `@static/*`            | `static/*`                                                          | `import Icon from "@static/icon.svg"`               |
+| `@components/*`        | `src/components/*`                                                  | `import Loading from "@components/loading"`         |
+| `@api/*`               | `src/actions/api/*`                                                 | `import { GET } from "@api/hello"`                  |
+| `@next/ssr`            | `frame-master-plugin-cloudflare-pages-dynamic-ssr/server`           | `import { createLoader } from "@next/ssr"`          |
+| `@next/ssr/hooks`      | `frame-master-plugin-cloudflare-pages-dynamic-ssr/client/hooks`     | `import { useLoader } from "@next/ssr/hooks"`       |
+| `@next/ssr/revalidate` | `frame-master-plugin-cloudflare-pages-dynamic-ssr/utils/revalidate` | `import { revalidate } from "@next/ssr/revalidate"` |
+| `@next/action/context` | `frame-master-plugin-cloudflare-pages-functions-action/context`     | `import { getContext } from "@next/action/context"` |
+| `@next/client`         | `frame-master-plugin-apply-react/utils`                             | `import { ThrowNotFound } from "@next/client"`      |
+
+---
+
 ## 📄 Filesystem Routing
 
 Pages in `src/pages/` map directly to URL routes — no registration needed.
@@ -171,7 +189,7 @@ Client-side SPA navigation automatically renders the nearest `loading.tsx` while
 Call `ThrowNotFound()` inside any page component to render the nearest `404.tsx`:
 
 ```tsx
-import { ThrowNotFound } from "frame-master-plugin-apply-react/utils";
+import { ThrowNotFound } from "@next/client";
 
 export default function Page() {
   const data = getData();
@@ -209,7 +227,7 @@ import {
   createLoader,
   createPageConfig,
   type PluginEventContext,
-} from "frame-master-plugin-cloudflare-pages-dynamic-ssr/server";
+} from "@next/ssr";
 
 // Cache this page for 60 seconds
 export const ssr_configs = createPageConfig({
@@ -232,7 +250,7 @@ export const loader_user = createLoader({
 ### 3. Read loader data in the component
 
 ```tsx
-import { useLoader } from "frame-master-plugin-cloudflare-pages-dynamic-ssr/client/hooks";
+import { useLoader } from "@next/ssr/hooks";
 
 export default function UserPage() {
   const user = useLoader(loader_user); // T | null
@@ -247,7 +265,7 @@ export default function UserPage() {
 ### Cache invalidation
 
 ```ts
-import { revalidate } from "frame-master-plugin-cloudflare-pages-dynamic-ssr/revalidate";
+import { revalidate } from "@next/ssr/revalidate";
 
 // Inside a server action:
 await revalidate("/users/123", ctx);
@@ -276,7 +294,7 @@ Files in `src/actions/` compile into Cloudflare Pages Functions and can be **imp
 
 ```ts
 // src/actions/api/hello.ts
-import { getContext } from "frame-master-plugin-cloudflare-pages-functions-action/context";
+import { getContext } from "@next/action/context";
 
 export async function GET() {
   const ctx = getContext<Env, never, never>(arguments);
@@ -295,7 +313,7 @@ Supported methods: `GET`, `POST`, `PUT`, `DELETE`, `PATCH`.
 ### Call from the client
 
 ```tsx
-import { GET as getHello, POST as updateUser } from "src/actions/api/hello";
+import { GET as getHello, POST as updateUser } from "@api/hello";
 
 const message = await getHello();
 const result = await updateUser("42", { name: "Alice" });
@@ -327,7 +345,7 @@ export function onRequestGet() {
 ### `getContext` helper
 
 ```ts
-import { getContext } from "frame-master-plugin-cloudflare-pages-functions-action/context";
+import { getContext } from "@next/action/context";
 
 export async function POST(arg1: string) {
   const ctx = getContext<Env, Params, Data>(arguments);
@@ -453,7 +471,7 @@ Set `siteUrl` to your production domain.
 2. In the Cloudflare Dashboard go to **Pages** → **Create a project** → **Connect to Git**.
 3. Select your repository and set:
    - **Framework preset**: None / Custom
-   - **Build command**: `bun run build`
+   - **Build command**: `bun i --production && NODE_ENV=production bun run build`
    - **Build output directory**: `.frame-master/build`
 4. Add the `DYNAMIC_PAGE_KV` KV namespace binding under **Settings → Functions → KV namespace bindings**.
 5. Click **Save and Deploy**.

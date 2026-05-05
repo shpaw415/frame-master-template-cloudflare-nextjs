@@ -1,5 +1,5 @@
+import { GET as getHello } from "@api/hello";
 import { useState } from "react";
-import { GET as getHello } from "../actions/api/hello";
 
 type Status = "idle" | "loading" | "success" | "error";
 

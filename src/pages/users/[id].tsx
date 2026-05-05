@@ -1,10 +1,9 @@
 "use dynamic";
 
-import { useLoader } from "frame-master-plugin-cloudflare-pages-dynamic-ssr/client/hooks";
-import {
-	createLoader,
-	createPageConfig,
-} from "frame-master-plugin-cloudflare-pages-dynamic-ssr/server";
+import { createLoader, createPageConfig } from "@next/ssr";
+import { useLoader } from "@next/ssr/hooks";
+import { DELETE as revalidate } from "@api/revalidate";
+import { usePath } from "@next/hooks/path";
 
 // Per-page cache configuration — cache each user page for 60 seconds.
 // Remove or adjust ssr_configs to change TTL behaviour.
@@ -31,6 +30,7 @@ export const loader_user = createLoader({
 
 export default function UserPage() {
 	const user = useLoader(loader_user);
+	const path = usePath();
 
 	if (!user) return null;
 
@@ -48,6 +48,30 @@ export default function UserPage() {
 				<code>frame-master-plugin-cloudflare-pages-dynamic-ssr</code> and cached
 				in Cloudflare KV for 60 seconds. On client-side navigation only the
 				loader props are re-fetched — the full HTML is not re-rendered.
+			</p>
+			<button
+				type="button"
+				onClick={() => revalidate(path)}
+				className="mt-6 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-full font-semibold text-sm transition-all shadow-lg shadow-blue-500/25"
+			>
+				Revalidate cache for this page
+			</button>
+			<p className="mt-4 text-sm text-gray-600">
+				Clicking the button above will call a Server Action that revalidates the
+				cache for this page, causing the next request to trigger a full
+				server-side re-render and update the cached HTML and loader data.
+			</p>
+			<a
+				href={path}
+				className="mt-4 inline-block text-blue-600 hover:underline text-sm transition-all border border-blue-500/20 px-3 py-1 rounded-full bg-blue-500/10"
+			>
+				Reload
+			</a>
+			<p className="mt-2 text-sm text-gray-600">
+				You can also manually reload the page to see the cache in action. If you
+				reload within 60 seconds, you'll see the same server render time. After
+				60 seconds, a new server render will occur, and you'll see an updated
+				server render time.
 			</p>
 		</main>
 	);

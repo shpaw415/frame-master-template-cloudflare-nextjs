@@ -34,6 +34,30 @@
 			],
 			"@static/*": [
 				"./static/*"
+			],
+			"@api/*": [
+				"./src/actions/api/*"
+			],
+			"@components/*": [
+				"./src/components/*"
+			],
+			"@next/ssr": [
+				"./node_modules/frame-master-plugin-cloudflare-pages-dynamic-ssr/src/server/index.ts",
+			],
+			"@next/ssr/revalidate": [
+				"./node_modules/frame-master-plugin-cloudflare-pages-dynamic-ssr/src/utils/revalidate.ts"
+			],
+			"@next/ssr/hooks": [
+				"./node_modules/frame-master-plugin-cloudflare-pages-dynamic-ssr/src/client/hooks.ts",
+			],
+			"@next/action/context": [
+				"./node_modules/frame-master-plugin-cloudflare-pages-functions-action/src/context.ts"
+			],
+			"@next/client": [
+				"./node_modules/frame-master-plugin-apply-react/src/utils.ts",
+			],
+			"@next/hooks/path": [
+				"./src/hooks/usePath.ts"
 			]
 		}
 	},

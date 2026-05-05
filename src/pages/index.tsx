@@ -1,5 +1,5 @@
+import ServerActionDemo from "@components/ServerActionDemo";
 import Logo from "@images/logo.png";
-import ServerActionDemo from "../components/ServerActionDemo";
 
 export default function HomePage() {
 	return (
@@ -39,7 +39,7 @@ export default function HomePage() {
 
 					<div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
 						<a
-							href="#get-started"
+							href="/#get-started"
 							className="px-8 py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-full font-semibold transition-all shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
 						>
 							Get Started

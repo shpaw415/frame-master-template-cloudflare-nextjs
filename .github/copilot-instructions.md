@@ -100,6 +100,24 @@ export default function Layout({ children }: { children: React.JSX.Element }) {
 
 ---
 
+## TypeScript Path Aliases
+
+Short import aliases are pre-configured in `tsconfig.json`. Always prefer these over deep relative or package paths:
+
+| Alias | Resolves to | Example |
+|---|---|---|
+| `@images/*` | `images/*` | `import Logo from "@images/logo.png"` |
+| `@static/*` | `static/*` | `import Icon from "@static/icon.svg"` |
+| `@components/*` | `src/components/*` | `import Loading from "@components/loading"` |
+| `@api/*` | `src/actions/api/*` | `import { GET } from "@api/hello"` |
+| `@next/ssr` | `frame-master-plugin-cloudflare-pages-dynamic-ssr/server` | `import { createLoader } from "@next/ssr"` |
+| `@next/ssr/hooks` | `frame-master-plugin-cloudflare-pages-dynamic-ssr/client/hooks` | `import { useLoader } from "@next/ssr/hooks"` |
+| `@next/ssr/revalidate` | `frame-master-plugin-cloudflare-pages-dynamic-ssr/utils/revalidate` | `import { revalidate } from "@next/ssr/revalidate"` |
+| `@next/action/context` | `frame-master-plugin-cloudflare-pages-functions-action/context` | `import { getContext } from "@next/action/context"` |
+| `@next/client` | `frame-master-plugin-apply-react/utils` | `import { ThrowNotFound } from "@next/client"` |
+
+---
+
 ## Plugin Overview
 
 Plugins are registered in `frame-master.config.ts`. The following plugins are active:

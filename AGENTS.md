@@ -98,6 +98,24 @@ export default function Layout({ children }: { children: React.JSX.Element }) {
 
 ---
 
+## TypeScript Path Aliases
+
+Short import aliases are pre-configured in `tsconfig.json`. Always prefer these over deep relative or package paths:
+
+| Alias                  | Resolves to                                                         | Example                                             |
+| ---------------------- | ------------------------------------------------------------------- | --------------------------------------------------- |
+| `@images/*`            | `images/*`                                                          | `import Logo from "@images/logo.png"`               |
+| `@static/*`            | `static/*`                                                          | `import Icon from "@static/icon.svg"`               |
+| `@components/*`        | `src/components/*`                                                  | `import Loading from "@components/loading"`         |
+| `@api/*`               | `src/actions/api/*`                                                 | `import { GET } from "@api/hello"`                  |
+| `@next/ssr`            | `frame-master-plugin-cloudflare-pages-dynamic-ssr/server`           | `import { createLoader } from "@next/ssr"`          |
+| `@next/ssr/hooks`      | `frame-master-plugin-cloudflare-pages-dynamic-ssr/client/hooks`     | `import { useLoader } from "@next/ssr/hooks"`       |
+| `@next/ssr/revalidate` | `frame-master-plugin-cloudflare-pages-dynamic-ssr/utils/revalidate` | `import { revalidate } from "@next/ssr/revalidate"` |
+| `@next/action/context` | `frame-master-plugin-cloudflare-pages-functions-action/context`     | `import { getContext } from "@next/action/context"` |
+| `@next/client`         | `frame-master-plugin-apply-react/utils`                             | `import { ThrowNotFound } from "@next/client"`      |
+
+---
+
 ## Plugin Overview
 
 Plugins are registered in `frame-master.config.ts`. The following plugins are active:
@@ -435,10 +453,10 @@ The `EnvInHTML` plugin (`frame-master-plugin-env-in-html`) injects build-time en
 
 ### What is exposed
 
-| Variable | Condition |
-|---|---|
+| Variable                             | Condition                               |
+| ------------------------------------ | --------------------------------------- |
 | Any variable prefixed with `PUBLIC_` | Always injected (e.g. `PUBLIC_API_URL`) |
-| `NODE_ENV` | Always injected |
+| `NODE_ENV`                           | Always injected                         |
 
 Variables are serialised into a `<script>` tag in `<head>` at build time — **variables without the `PUBLIC_` prefix (other than `NODE_ENV`) are never injected**.
 
@@ -452,7 +470,7 @@ PUBLIC_API_URL=https://api.example.com
 ```ts
 // anywhere in src/
 console.log(process.env.PUBLIC_API_URL); // "https://api.example.com"
-console.log(process.env.NODE_ENV);       // "development" | "production"
+console.log(process.env.NODE_ENV); // "development" | "production"
 ```
 
 ---
