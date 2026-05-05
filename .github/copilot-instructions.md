@@ -1,10 +1,17 @@
-# cloudflare-base
+# cloudflare-nextjs
 
 Orientation guide for AI coding agents working on this project.
 
 ## Project Overview
 
 A React application deployed to **Cloudflare Pages**, orchestrated by the [Frame Master](https://github.com/shpaw415/frame-master) metaframework.
+
+The goal of this template is to bring a **Next.js-like developer experience to Cloudflare Pages** — filesystem routing, nested layouts, server-side rendering, server actions, and client-accessible environment variables — while staying on the Cloudflare edge runtime. More Next.js-equivalent features will be added over time.
+
+This template extends the base `cloudflare-base` template with two additional capabilities:
+
+1. **Dynamic server-side rendering** for individual pages via [`frame-master-plugin-cloudflare-pages-dynamic-ssr`](https://github.com/shpaw415/frame-master-plugin-cloudflare-pages-dynamic-ssr) — pages marked with `"use dynamic"` are rendered server-side by a Cloudflare Pages Function, cached in KV or the Cache API, and hydrated on the client.
+2. **Type-safe server actions** via [`frame-master-plugin-cloudflare-pages-functions-action`](https://github.com/shpaw415/frame-master-plugin-cloudflare-pages-functions-action) — server-side functions in `src/actions/` that are compiled into Cloudflare Pages Functions and callable from the client as regular async functions with full TypeScript type-safety.
 
 **Stack:**
 - **Runtime / package manager:** Bun 1.3+
@@ -13,18 +20,25 @@ A React application deployed to **Cloudflare Pages**, orchestrated by the [Frame
 - **Deployment target:** Cloudflare Pages
 - **Language:** TypeScript (strict mode)
 
-The framework is plugin-based. All build behavior — SSR, hydration, Tailwind compilation, image optimization, SEO, sitemap — is driven by plugins registered in `frame-master.config.ts`.
+The framework is plugin-based. All build behavior — SSR, hydration, Tailwind compilation, image optimization, SEO, sitemap, server actions, dynamic SSR — is driven by plugins registered in `frame-master.config.ts`.
 
 ---
 
 ## Key Commands
 
 ```bash
-bun dev              # Start dev server with HMR (http://localhost:3001)
+# Copy .env.exemple to .env and set WRANGLER_PORT (default: 8787) before running dev.
+bun dev              # Start Frame Master dev server (http://localhost:3000) — proxies to Wrangler
 bun run build        # Production build → .frame-master/build
 bun run build:dev    # Dev-mode build  → .frame-master/build
 bun frame-master init  # First-time initialization (run once after clone)
 ```
+
+> **Dev requires Wrangler running in a separate terminal:**
+> ```bash
+> bunx wrangler pages dev .frame-master/build --port 8787
+> ```
+> Frame Master's dev server proxies all requests to Wrangler so Cloudflare bindings (KV, D1, R2, etc.) and Pages Functions are available during development. The port must match `WRANGLER_PORT` in `.env`.
 
 ---
 
@@ -75,11 +89,14 @@ export default function Layout({ children }: { children: React.JSX.Element }) {
 | File | Purpose |
 |---|---|
 | `src/shell.tsx` | HTML document shell (`<html>`, `<head>`, `<body>`). Modify for global `<head>` changes (stylesheets, fonts, viewport). |
-| `src/client-wrapper.tsx` | Client-side only wrapper. Contains `RouterHost` for SPA navigation. **Never remove `RouterHost`** — it powers client-side routing. |
+| `src/client-shell.tsx` | Client-side only wrapper. Contains `RouterHost` + `SSRPropsProvider` for SPA navigation and dynamic SSR hydration. **Never remove `RouterHost` or `SSRPropsProvider`** — they power client-side routing and SSR prop delivery. |
 | `src/common.ts` | Shared app-wide constants (e.g. `APP_DATA.projectName`). Referenced in `shell.tsx` for the page title. |
+| `src/action-utils/page-wrapper.tsx` | SSR HTML wrapper used by the dynamic SSR middleware. Combines `shell.tsx` with `NextJsStyleLayoutSetup` for nested layout support during server rendering. |
+| `src/actions/_middleware.ts` | Cloudflare Pages middleware for dynamic SSR routes. Initialises the KV cache provider and the `parser.jsx` wrapper. **Required for dynamic SSR to work.** |
 | `site.config.ts` | SEO metadata, Open Graph, Twitter card, sitemap base URL. **Primary file to update when customizing a new project.** |
 | `frame-master.config.ts` | Plugin registration and configuration. Rarely needs changes unless adding/removing plugins or changing plugin options. |
-| `wrangler.jsonc` | Cloudflare Pages deployment config. Update the `name` field for each project. |
+| `wrangler.jsonc` | Cloudflare Pages deployment config. Update `name` and add/configure KV namespaces. |
+| `.env` | Local env vars. Must set `WRANGLER_PORT` to the port Wrangler dev server listens on. Copy from `.env.exemple`. |
 
 ---
 
@@ -90,7 +107,7 @@ Plugins are registered in `frame-master.config.ts`. The following plugins are ac
 | Plugin | What it does |
 |---|---|
 | `ReactToHtml` | SSR/SSG: renders pages to HTML using `src/shell.tsx` as the document wrapper. `srcDir` points to the pages directory. |
-| `ApplyReact` (`style: "nextjs"`) | Client-side hydration and full SPA navigation. `RouterHost` in `client-wrapper.tsx` is the client router. |
+| `ApplyReact` (`style: "nextjs"`) | Client-side hydration and full SPA navigation. `RouterHost` in `src/client-shell.tsx` is the client router. |
 | `TailwindPlugin` | Compiles `static/tailwind.css` → `static/style.css` on build/dev. |
 | `imageOptimizer` | Converts originals in `images/` to WebP at configurable sizes (default: 320, 720, 1280) and writes results to `optimized/`. Sizes are set via the `sizes` array in `frame-master.config.ts`. Tracks state in `optimized/manifest.json`. |
 | `SVGLoader` | Allows importing `.svg` files as React components. |
@@ -98,6 +115,11 @@ Plugins are registered in `frame-master.config.ts`. The following plugins are ac
 | `SEOPlugin` | Injects `<meta>` tags defined in `site.config.ts` into every page's `<head>`. |
 | `AutoSiteMap` | Generates `sitemap.xml` from the built HTML pages using `siteUrl` from `site.config.ts`. |
 | `ServeFromBuild` | Serves `.frame-master/build` during development. |
+| `EnvInHTML` | Injects build-time environment variables into the static HTML output. |
+| `CFActionPlugin` (inside `buildUnifier`) | Compiles `src/actions/` into Cloudflare Pages Functions. Enables type-safe server actions callable from the client. |
+| `SSRPlugin` (inside `buildUnifier`) | Scans `src/pages/` for `"use dynamic"` pages and generates Cloudflare Pages Function handlers compiled by `CFActionPlugin`. |
+| `buildUnifier` | Orchestrates `CFActionPlugin` and `SSRPlugin` so their build outputs are unified into a single Cloudflare Pages Functions bundle. |
+| `proxy-to-wrangler` (inline plugin) | During dev, forwards all requests from the Frame Master dev server to Wrangler so Cloudflare bindings and Functions are live. |
 
 ---
 
@@ -207,6 +229,234 @@ export default function Page() {
 
 ---
 
+## Dynamic SSR Pages
+
+Pages marked with `"use dynamic"` are rendered server-side by a Cloudflare Pages Function, cached in KV, and hydrated on the client. This is powered by [`frame-master-plugin-cloudflare-pages-dynamic-ssr`](https://github.com/shpaw415/frame-master-plugin-cloudflare-pages-dynamic-ssr).
+
+### The `"use dynamic"` directive
+
+Add `"use dynamic"` as the **first line** of any page file to mark it as a dynamic SSR page:
+
+```tsx
+// src/pages/users/[id].tsx
+"use dynamic";
+// rest of the file...
+```
+
+A dynamic page file may export three things:
+
+| Export | Required | Description |
+|---|---|---|
+| `export default` | ✅ | The React component rendered server-side |
+| `export const loader_<name>` | ✗ | A data loader whose result is available via `useLoader()` |
+| `export const ssr_configs` | ✗ | Per-page cache configuration (TTL, etc.) |
+
+### `createLoader` — server-side data fetching
+
+```tsx
+import {
+  createLoader,
+  type PluginEventContext,
+} from "frame-master-plugin-cloudflare-pages-dynamic-ssr/server";
+
+export const loader_user = createLoader({
+  name: "user",          // unique name within the page file
+  async callback(ctx: PluginEventContext<Env, "id", unknown>) {
+    // ctx.params.id  — dynamic route param
+    // ctx.env        — Cloudflare bindings (KV, D1, R2, …)
+    // ctx.request    — incoming Request
+    return { id: ctx.params.id, name: `User #${ctx.params.id}` };
+  },
+});
+```
+
+The callback **never reaches the browser**. At build time the plugin replaces the full `createLoader(...)` expression in the client bundle with a lightweight metadata stub.
+
+### `createPageConfig` — cache TTL
+
+```tsx
+import { createPageConfig } from "frame-master-plugin-cloudflare-pages-dynamic-ssr/server";
+
+export const ssr_configs = createPageConfig({
+  callback(_ctx) {
+    return { ttl: 60 }; // seconds; default is 86400 (24 h)
+  },
+});
+```
+
+### `useLoader` — reading loader data in components
+
+```tsx
+import { useLoader } from "frame-master-plugin-cloudflare-pages-dynamic-ssr/client/hooks";
+
+export default function UserPage() {
+  const user = useLoader(loader_user); // T | null
+
+  if (!user) return null;
+  return <h1>{user.name}</h1>;
+}
+```
+
+- During SSR: reads from the request context.
+- On first client load: reads from `window.__PROVIDER_PROPS__` injected by the server.
+- On client-side navigation: `SSRPropsProvider` re-fetches only the props (not the full HTML).
+- Returns `null` until data is available.
+
+### `revalidate` — on-demand cache invalidation
+
+```tsx
+import { revalidate } from "frame-master-plugin-cloudflare-pages-dynamic-ssr/revalidate";
+
+// Inside a server action or Pages Function:
+await revalidate("/users/123", ctx);
+```
+
+Deletes the cached HTML and props for the given pathname so the next request re-renders.
+
+### Store providers
+
+The cache backend is configured in `src/actions/_middleware.ts`:
+
+| Provider | Import | Notes |
+|---|---|---|
+| `KVProvider` (default) | `…/provider/store/kv` | Persistent; requires `kv_namespaces` in `wrangler.jsonc` |
+| `CacheProvider` | `…/provider/store/cache` | Cloudflare Cache API; no binding needed; may be evicted |
+| `createStoreProvider` | `…/provider/utils` | Custom backend (D1, R2, external API, etc.) |
+
+### Request lifecycle
+
+```
+Browser request → Cloudflare Pages Function (generated handler)
+  │
+  ├─ Cache hit  → return cached HTML / props immediately
+  │
+  └─ Cache miss
+       ├─ Run all loader_* callbacks server-side
+       ├─ Render the default export component to HTML
+       ├─ Inject loader results as window.__PROVIDER_PROPS__ in <head>
+       ├─ Store HTML + props in KV with the configured TTL
+       └─ Return the full HTML response
+```
+
+### Demo page
+
+`src/pages/users/[id].tsx` is a working example — it shows `"use dynamic"`, `createLoader`, `createPageConfig`, and `useLoader` in action.
+
+---
+
+## Server Actions
+
+Files inside `src/actions/` are compiled into Cloudflare Pages Functions by [`frame-master-plugin-cloudflare-pages-functions-action`](https://github.com/shpaw415/frame-master-plugin-cloudflare-pages-functions-action). They can be **imported and called directly from client code** as regular async functions — the plugin handles serialisation and routing transparently.
+
+### File-based routing
+
+Actions follow Next.js-style file-based routing:
+
+```
+src/actions/
+├── _middleware.ts        ← Cloudflare Pages middleware (dynamic SSR setup)
+└── api/
+    ├── hello.ts          → /api/hello
+    └── health.ts         → /api/health (uses "no-action" directive)
+```
+
+### Creating an action
+
+```ts
+// src/actions/api/hello.ts
+import { getContext } from "frame-master-plugin-cloudflare-pages-functions-action/context";
+
+export async function GET() {
+  const ctx = getContext<Env, never, never>(arguments);
+  // ctx.env    — Cloudflare bindings
+  // ctx.request — incoming Request
+  return "Hello from Server";
+}
+
+export async function POST(userId: string, data: { name: string }) {
+  const ctx = getContext<Env, never, never>(arguments);
+  await ctx.env.KV.put(`user:${userId}`, JSON.stringify(data));
+  return { success: true } as const;
+}
+```
+
+Supported HTTP methods: `GET`, `POST`, `PUT`, `DELETE`, `PATCH`.
+
+### Calling an action from the client
+
+```tsx
+import { GET as getHello, POST as updateUser } from "src/actions/api/hello";
+
+const message = await getHello();          // fully type-safe
+const result  = await updateUser("42", { name: "Alice" });
+```
+
+No fetch URL, no JSON.stringify — the plugin generates the client stub automatically.
+
+### Supported data types
+
+| Type | Direction |
+|---|---|
+| JSON (objects, primitives) | both ways |
+| `File` / `File[]` | client → server |
+| `FormData` | client → server |
+| `File` / `Blob` | server → client |
+
+### Bypassing the plugin (`"no-action"` directive)
+
+Use `"no-action"` as the first line to expose a file as a plain Cloudflare Pages Function without any plugin wrapping:
+
+```ts
+"no action";
+
+export function onRequestGet(ctx) {
+  return new Response("OK");
+}
+```
+
+### `getContext` helper
+
+```ts
+import { getContext } from "frame-master-plugin-cloudflare-pages-functions-action/context";
+
+export async function POST(arg1: string) {
+  const ctx = getContext<Env, Params, Data>(arguments);
+  // ctx.env.KV, ctx.env.DB, ctx.request, ctx.data, …
+}
+```
+
+`getContext` must receive the special `arguments` object — this is how the plugin injects the Cloudflare `EventContext` at runtime.
+
+---
+
+## Client-Side Environment Variables
+
+The `EnvInHTML` plugin (`frame-master-plugin-env-in-html`) injects build-time environment variables into each HTML page so they are available as `process.env` in the browser.
+
+### What is exposed
+
+| Variable | Condition |
+|---|---|
+| Any variable prefixed with `PUBLIC_` | Always injected (e.g. `PUBLIC_API_URL`) |
+| `NODE_ENV` | Always injected |
+
+Variables are serialised into a `<script>` tag in `<head>` at build time — **variables without the `PUBLIC_` prefix (other than `NODE_ENV`) are never injected**.
+
+### Usage
+
+```bash
+# .env
+PUBLIC_API_URL=https://api.example.com
+```
+
+```ts
+// anywhere in src/
+console.log(process.env.PUBLIC_API_URL); // "https://api.example.com"
+console.log(process.env.NODE_ENV);       // "development" | "production"
+```
+
+---
+
 ## Do Not Edit (Generated Paths)
 
 | Path | Generated by |
@@ -215,15 +465,17 @@ export default function Page() {
 | `optimized/` | `imageOptimizer` |
 | `optimized/manifest.json` | `imageOptimizer` |
 | `.frame-master/` | Frame Master core (build output, type declarations, preload) |
+| `functions/` | `CFActionPlugin` / `SSRPlugin` (Cloudflare Pages Functions bundle) |
 
 ---
 
 ## Deployment (Cloudflare Pages)
 
 1. Update `wrangler.jsonc` → set `name` to your project name.
-2. Update `site.config.ts` → set `siteUrl` to your production URL.
-3. Build output directory: `.frame-master/build`
-4. Build command: `bun run build`
+2. Update `wrangler.jsonc` → replace `<kv-binding-id>` in `kv_namespaces` with your real KV namespace ID (create one in the Cloudflare dashboard if needed).
+3. Update `site.config.ts` → set `siteUrl` to your production URL.
+4. Build output directory: `.frame-master/build`
+5. Build command: `bun run build`
 
 For Cloudflare Dashboard setup:
 - **Framework preset:** None / Custom

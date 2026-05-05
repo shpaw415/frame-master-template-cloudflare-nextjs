@@ -1,6 +1,10 @@
 {
 	"compilerOptions": {
-		"lib": ["ESNext", "DOM", "DOM.Iterable"],
+		"lib": [
+			"ESNext",
+			"DOM",
+			"DOM.Iterable"
+		],
 		"target": "ESNext",
 		"module": "preserve",
 		"moduleDetection": "force",
@@ -21,13 +25,23 @@
 		"types": [
 			"frame-master-plugin-image-optimizer/types",
 			"./worker-configuration.d.ts",
-			"frame-master-plugin-cloudflare-pages-dynamic-ssr/types"
+			"frame-master-plugin-cloudflare-pages-dynamic-ssr/types",
+			"@cloudflare/workers-types"
 		],
 		"paths": {
-			"@images/*": ["./images/*"],
-			"@static/*": ["./static/*"]
+			"@images/*": [
+				"./images/*"
+			],
+			"@static/*": [
+				"./static/*"
+			]
 		}
 	},
-	"include": ["src", ".frame-master/frame-master-custom-type.d.ts"],
-	"exclude": [".frame-master/build"]
+	"include": [
+		"./src",
+		".frame-master/frame-master-custom-type.d.ts"
+	],
+	"exclude": [
+		".frame-master"
+	]
 }

@@ -39,7 +39,7 @@ export default function Layout({ children }: { children: React.JSX.Element }) {
 			</nav>
 
 			{/* Main Content */}
-			<main>{children}</main>
+			<main className="pt-16">{children}</main>
 		</div>
 	);
 }

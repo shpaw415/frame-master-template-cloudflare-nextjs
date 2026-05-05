@@ -1,4 +1,5 @@
 import Logo from "@images/logo.png";
+import ServerActionDemo from "../components/ServerActionDemo";
 
 export default function HomePage() {
 	return (
@@ -42,6 +43,12 @@ export default function HomePage() {
 							className="px-8 py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-full font-semibold transition-all shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
 						>
 							Get Started
+						</a>
+						<a
+							href="/users/1"
+							className="px-8 py-3.5 bg-purple-600 hover:bg-purple-500 text-white rounded-full font-semibold transition-all shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40"
+						>
+							SSR Demo
 						</a>
 						<a
 							href="https://developers.cloudflare.com/pages"
@@ -112,6 +119,64 @@ export default function HomePage() {
 								<p className="text-slate-400 leading-relaxed">{feature.desc}</p>
 							</div>
 						))}
+					</div>
+				</div>
+			</section>
+			{/* Dynamic SSR Demo Section */}
+			<section className="py-24 relative">
+				<div className="container mx-auto px-4">
+					<div className="text-center mb-16">
+						<h2 className="text-3xl md:text-4xl font-bold mb-4">
+							Template Demos
+						</h2>
+						<p className="text-slate-400">
+							Explore the capabilities added on top of the base template
+						</p>
+					</div>
+
+					<div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+						{/* Dynamic SSR demo */}
+						<a
+							href="/users/1"
+							className="group p-8 bg-slate-950 rounded-2xl border border-slate-800 hover:border-purple-500/40 transition-colors"
+						>
+							<div className="text-4xl mb-6 bg-slate-900 w-16 h-16 flex items-center justify-center rounded-xl group-hover:scale-110 transition-transform duration-300">
+								🖥️
+							</div>
+							<h3 className="text-xl font-bold mb-3 text-slate-100">
+								Dynamic SSR —{" "}
+								<code className="text-purple-400 font-mono">/users/[id]</code>
+							</h3>
+							<p className="text-slate-400 leading-relaxed mb-4">
+								Pages marked with{" "}
+								<code className="text-purple-400 font-mono">"use dynamic"</code>{" "}
+								are rendered server-side by a Cloudflare Pages Function, cached
+								in KV, and hydrated on the client — with full support for
+								dynamic route parameters and per-loader data injection.
+							</p>
+							<span className="inline-flex items-center gap-1.5 text-purple-400 font-semibold text-sm group-hover:gap-2.5 transition-all">
+								View demo →
+							</span>
+						</a>
+
+						{/* Server Actions demo */}
+						<div className="group p-8 bg-slate-950 rounded-2xl border border-slate-800 hover:border-blue-500/40 transition-colors">
+							<div className="text-4xl mb-6 bg-slate-900 w-16 h-16 flex items-center justify-center rounded-xl group-hover:scale-110 transition-transform duration-300">
+								⚡
+							</div>
+							<h3 className="text-xl font-bold mb-3 text-slate-100">
+								Server Actions —{" "}
+								<code className="text-blue-400 font-mono">/api/hello</code>
+							</h3>
+							<p className="text-slate-400 leading-relaxed mb-4">
+								Functions in{" "}
+								<code className="text-blue-400 font-mono">src/actions/</code>{" "}
+								compile into Cloudflare Pages Functions and can be called from
+								client code as regular async functions — fully type-safe, no
+								fetch URLs needed.
+							</p>
+							<ServerActionDemo />
+						</div>
 					</div>
 				</div>
 			</section>

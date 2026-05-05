@@ -1,5 +1,5 @@
+import { NextJsStyleLayoutSetup } from "frame-master-plugin-cloudflare-pages-dynamic-ssr/utils/index.ts";
 import type { JSX } from "react";
-import { NextJsStyleLayoutSetup } from "../../../src/utils/index.ts";
 import Shell from "../shell";
 
 export function PageWrapper({

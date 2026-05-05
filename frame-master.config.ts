@@ -106,15 +106,14 @@ export default {
 				await builder.build();
 			},
 		},
-
 		ServeFromBuild({
 			buildDir: ".frame-master/build",
 			plainURLPaths: ["index.html"],
 			buildOnDevStart: true,
 		}),
-
 		EnvInHTML({
 			entries: ["NODE_ENV"],
+			prefix: "PUBLIC_",
 		}),
 		TailwindPlugin({
 			inputFile: "static/tailwind.css",
