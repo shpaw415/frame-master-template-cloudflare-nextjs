@@ -1,11 +1,19 @@
+import { join } from "node:path";
 import { getBuilder } from "frame-master/build";
+import type { FrameMasterPlugin } from "frame-master/plugin";
+import {
+	directiveToolSingleton,
+	getGlobalPluginContext,
+} from "frame-master/plugin/utils";
 import type { FrameMasterConfig } from "frame-master/server/types";
+import { isBuildMode, isProd } from "frame-master/utils";
 import ApplyReact from "frame-master-plugin-apply-react/plugin";
 import AssetsToBuild from "frame-master-plugin-assets-to-build";
 import AutoSiteMap from "frame-master-plugin-auto-sitemap";
 import buildUnifier from "frame-master-plugin-build-unifier";
 import SSRPlugin from "frame-master-plugin-cloudflare-pages-dynamic-ssr";
 import CFActionPlugin from "frame-master-plugin-cloudflare-pages-functions-action";
+import CloudflareRouteFilePlugin from "frame-master-plugin-cloudflare-route-file-generator";
 import EnvInHTML from "frame-master-plugin-env-in-html";
 import imageOptimizer from "frame-master-plugin-image-optimizer";
 import ReactToHTML from "frame-master-plugin-react-to-html";
@@ -15,11 +23,14 @@ import TailwindPlugin from "frame-master-plugin-tailwind";
 import SVGLoader from "frame-master-svg-to-jsx-loader";
 import SiteConfig from "./site.config";
 import AsyncFallback from "./src/components/loading";
-import { getGlobalPluginContext } from "frame-master/plugin/utils";
-import { isBuildMode } from "frame-master/utils";
-import type { FrameMasterPlugin } from "frame-master/plugin";
-import { join } from "node:path";
-import { isProd } from "frame-master/utils";
+import {
+	addStaticRoute,
+	collectStaticExcludeRules,
+	createRouteTreeNode,
+	DYNAMIC_ROUTE_SEGMENT_PATTERN,
+	isNonPageRoute,
+	markDynamicRoute,
+} from "./.frame-master/optimization/cloudflare_route/hoffman_coding";
 
 if (!process.env.WRANGLER_PORT && !isBuildMode()) {
 	throw new Error(
@@ -81,7 +92,7 @@ export default {
 		ApplyReact({
 			route: "src/pages",
 			clientShellPath: "src/client-shell.tsx",
-			entrypointExtensions: [".tsx", ".jsx"],
+			entrypointExtensions: SiteConfig.frameworkConfig.routesExtensions,
 			style: "nextjs",
 			fallbacks: {
 				defaultLoadingComponentPath: "src/components/loading.tsx",
@@ -93,7 +104,7 @@ export default {
 			verbose: false,
 			srcDir: "src/pages",
 			shellPath: "src/shell.tsx",
-			entrypointExtensions: [".tsx", ".jsx"],
+			entrypointExtensions: SiteConfig.frameworkConfig.routesExtensions,
 			asyncFallback: AsyncFallback,
 			exclude: [
 				/.*layout\.(tsx|jsx)$/,
@@ -159,48 +170,6 @@ export default {
 				},
 			],
 		}),
-		{
-			name: "proxy-to-wrangler",
-			version: "0.1.0",
-			serverConfig: {
-				routes: {
-					"/*": async (req) => {
-						const url = new URL(req.url);
-						url.port = String(WranglerServerPort);
-						url.hostname = "127.0.0.1";
-						const headers = new Headers(req.headers);
-						headers.set("host", `127.0.0.1:${WranglerServerPort}`);
-						headers.delete("accept-encoding");
-						const hasBody =
-							req.method !== "GET" &&
-							req.method !== "HEAD" &&
-							req.body !== null;
-						try {
-							const response = await fetch(url, {
-								method: req.method,
-								headers,
-								body: hasBody ? req.body : undefined,
-								redirect: "manual",
-							});
-							response.headers.delete("content-encoding");
-							return response;
-						} catch {
-							return new Response("Bad Gateway: upstream unavailable", {
-								status: 502,
-							});
-						}
-					},
-				},
-			},
-			build: {
-				buildConfig: {
-					splitting: true,
-				},
-			},
-			async serverReady({ builder }) {
-				await builder.build();
-			},
-		},
 		ServeFromBuild({
 			buildDir: ".frame-master/build",
 			plainURLPaths: ["index.html"],
@@ -252,17 +221,58 @@ export default {
 			baseUrl: SiteConfig.siteUrl,
 			authorizedExtensions: ["html"],
 		}),
-		{
-			name: "static-assets",
-			version: "1.0.0",
-			build: {
-				buildConfig: {
-					naming: {
-						asset: "[dir]/[name].[ext]",
-					},
-				},
+		CloudflareRouteFilePlugin({
+			routeOptions: () => {
+				const dynamicFilePath = new Set(
+					directiveToolSingleton
+						.getFromDirective("use-dynamic")
+						.map((directive) => directive.path),
+				);
+				const routeTree = createRouteTreeNode();
+
+				const routes = Object.entries(
+					new Bun.FileSystemRouter({
+						dir: "src/pages",
+						fileExtensions: SiteConfig.frameworkConfig.routesExtensions,
+						style: "nextjs",
+					}).routes,
+				).sort(([leftPath], [rightPath]) => leftPath.localeCompare(rightPath));
+
+				for (const [pathname, filePath] of routes) {
+					if (isNonPageRoute(pathname)) continue;
+
+					if (
+						dynamicFilePath.has(filePath) ||
+						DYNAMIC_ROUTE_SEGMENT_PATTERN.test(pathname)
+					) {
+						markDynamicRoute(routeTree, pathname);
+						continue;
+					}
+
+					addStaticRoute(routeTree, pathname);
+				}
+
+				const excludedStaticRoutes = collectStaticExcludeRules(routeTree).sort(
+					(leftPath, rightPath) => leftPath.localeCompare(rightPath),
+				);
+
+				return {
+					version: 1,
+					include: ["/*"],
+					exclude: [
+						...excludedStaticRoutes,
+						"/optimized/*",
+						"/static/*",
+						"/assets/*",
+						"/favicon.ico",
+						"/robots.txt",
+						"/@cf-process-env.js",
+						"/@dynamic-ssr-endpoints.js",
+						"/chunks/*",
+					],
+				};
 			},
-		},
+		}),
 		{
 			name: "dev-plugin",
 			version: "1.0.0",
@@ -272,10 +282,61 @@ export default {
 				if (!abs.startsWith("src/") || builder?.isBuilding()) return;
 				await builder?.build();
 			},
+		},
+		{
+			name: "proxy-to-wrangler",
+			version: "0.1.0",
+			serverConfig: {
+				routes: {
+					"/*": async (req) => {
+						const url = new URL(req.url);
+						url.port = String(WranglerServerPort);
+						url.hostname = "127.0.0.1";
+						const headers = new Headers(req.headers);
+						headers.set("host", `127.0.0.1:${WranglerServerPort}`);
+						headers.delete("accept-encoding");
+						const hasBody =
+							req.method !== "GET" &&
+							req.method !== "HEAD" &&
+							req.body !== null;
+						try {
+							const response = await fetch(url, {
+								method: req.method,
+								headers,
+								body: hasBody ? req.body : undefined,
+								redirect: "manual",
+							});
+							response.headers.delete("content-encoding");
+							return response;
+						} catch {
+							return new Response("Bad Gateway: upstream unavailable", {
+								status: 502,
+							});
+						}
+					},
+				},
+			},
 			build: {
-				buildConfig: () => ({
+				buildConfig: {
+					splitting: true,
+				},
+			},
+			async serverReady({ builder }) {
+				await builder.build();
+			},
+		},
+		{
+			name: "optimization-plugin",
+			version: "1.0.0",
+			build: {
+				buildConfig: {
 					minify: isProd(),
-				}),
+					splitting: true,
+					naming: {
+						chunk: "chunks/chunk-[hash].[ext]",
+						asset: "[dir]/[name].[ext]",
+					},
+				},
 			},
 		},
 	],
