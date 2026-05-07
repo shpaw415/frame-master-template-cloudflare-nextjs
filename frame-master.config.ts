@@ -15,20 +15,68 @@ import TailwindPlugin from "frame-master-plugin-tailwind";
 import SVGLoader from "frame-master-svg-to-jsx-loader";
 import SiteConfig from "./site.config";
 import AsyncFallback from "./src/components/loading";
+import { getGlobalPluginContext } from "frame-master/plugin/utils";
+import { isBuildMode } from "frame-master/utils";
+import type { FrameMasterPlugin } from "frame-master/plugin";
+import { join, extname } from "node:path";
 
-if (!process.env.WRANGLER_PORT) {
+if (!process.env.WRANGLER_PORT && !isBuildMode()) {
 	throw new Error(
 		"Please see rename the .env.exemple file to .env and make sure WRANGLER_PORT is set to the port your Wrangler dev server will run on.",
 	);
 }
-
 const WranglerServerPort = Number(process.env.WRANGLER_PORT);
+
+const cwd = process.cwd();
+
+const catchAllPatch: FrameMasterPlugin = {
+	name: "catchall-manager",
+	version: "1.0.0",
+	build: {
+		buildConfig: {
+			plugins: [
+				{
+					name: "catchall-entrypoint",
+					setup(build) {
+						build.onResolve(
+							{ filter: /\[\.\.\..*\]\.(tsx|jsx)/, namespace: "file" },
+							(args) => {
+								return {
+									path: args.path.includes("@apply-react/routes")
+										? join(
+												cwd,
+												"src/pages",
+												args.path.replace("@apply-react/routes/", ""),
+											)
+										: args.path,
+									namespace: "catchall",
+								};
+							},
+						);
+						build.onLoad(
+							{ filter: /.*/, namespace: "catchall" },
+							async (args) => {
+								return {
+									contents:
+										args.__chainedContents ||
+										(await Bun.file(args.path).text()),
+									loader: "tsx",
+								};
+							},
+						);
+					},
+				},
+			],
+		},
+	},
+};
 
 export default {
 	HTTPServer: {
 		port: 3000,
 	},
 	plugins: [
+		catchAllPatch,
 		ApplyReact({
 			route: "src/pages",
 			clientShellPath: "src/client-shell.tsx",
@@ -46,6 +94,11 @@ export default {
 			shellPath: "src/shell.tsx",
 			entrypointExtensions: [".tsx", ".jsx"],
 			asyncFallback: AsyncFallback,
+			exclude: [
+				/.*layout\.(tsx|jsx)$/,
+				/.*404\.(tsx|jsx)$/,
+				/.*loading\.(tsx|jsx)$/,
+			],
 		}),
 		...buildUnifier({
 			plugins: [
@@ -62,6 +115,47 @@ export default {
 					},
 					entrypointMatcher: [/.*layout\.tsx$/],
 				}),
+				{
+					name: "env-vars-in-build",
+					version: "1.0.0",
+					build: {
+						buildConfig: {
+							entrypoints: ["@cf-process-env.js"],
+							files: {
+								"@cf-process-env.js": `
+								globalThis.process ??= {}; process.env ??= ${JSON.stringify({
+									NODE_ENV: process.env.NODE_ENV,
+									...Object.fromEntries(
+										Object.entries(process.env).filter(([key]) =>
+											key.startsWith("PUBLIC_"),
+										),
+									),
+								})};`,
+							},
+						},
+					},
+				},
+				{
+					name: "inject-virtual-module",
+					version: "1.0.0",
+					createContext() {
+						getGlobalPluginContext("build-unifier")?.setBuildConfig?.(
+							"inject-virtual-module",
+							{
+								buildConfig: {
+									files: {
+										"@apply-react/client-routes.ts": "export default {};",
+										"@apply-react/HMR-enabled.ts": `export default false;`,
+										"@apply-react/404.tsx":
+											"export default () => <div>404 Not Found</div>;",
+										"@apply-react/loading.tsx":
+											"export default () => <div>Loading...</div>;",
+									},
+								},
+							},
+						);
+					},
+				},
 			],
 		}),
 		{

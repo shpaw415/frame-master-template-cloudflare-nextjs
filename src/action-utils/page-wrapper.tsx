@@ -1,4 +1,4 @@
-import { NextJsStyleLayoutSetup } from "frame-master-plugin-cloudflare-pages-dynamic-ssr/utils/index.ts";
+import { NextJsStyleLayoutSetup } from "frame-master-plugin-cloudflare-pages-dynamic-ssr/utils/nextjs";
 import type { JSX } from "react";
 import Shell from "../shell";
 
@@ -12,6 +12,7 @@ export function PageWrapper({
 	return (
 		<Shell>
 			<script src="/@apply-react/client-hydrate.js" type="module" />
+			<script src="/@cf-process-env.js" type="module" />
 			{NextJsStyleLayoutSetup.PageWrapper({
 				children,
 				pathname,

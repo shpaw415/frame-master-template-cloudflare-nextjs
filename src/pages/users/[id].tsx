@@ -20,6 +20,9 @@ export const loader_user = createLoader({
 	async callback(ctx) {
 		// In a real app you would query a database or external API here.
 		// ctx.env gives access to all Cloudflare bindings (KV, D1, R2, …).
+
+		await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate some latency
+
 		return {
 			id: ctx.params.id,
 			name: `User #${ctx.params.id}`,
