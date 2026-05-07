@@ -18,7 +18,8 @@ import AsyncFallback from "./src/components/loading";
 import { getGlobalPluginContext } from "frame-master/plugin/utils";
 import { isBuildMode } from "frame-master/utils";
 import type { FrameMasterPlugin } from "frame-master/plugin";
-import { join, extname } from "node:path";
+import { join } from "node:path";
+import { isProd } from "frame-master/utils";
 
 if (!process.env.WRANGLER_PORT && !isBuildMode()) {
 	throw new Error(
@@ -270,6 +271,11 @@ export default {
 				const builder = getBuilder();
 				if (!abs.startsWith("src/") || builder?.isBuilding()) return;
 				await builder?.build();
+			},
+			build: {
+				buildConfig: () => ({
+					minify: isProd(),
+				}),
 			},
 		},
 	],
