@@ -19,6 +19,7 @@
 		"frame-master-plugin-build-unifier": "^1.0.0",
 		"frame-master-plugin-cloudflare-pages-dynamic-ssr": "^0.2.1",
 		"frame-master-plugin-cloudflare-pages-functions-action": "^3.0.0",
+		"frame-master-plugin-cloudflare-route-file-generator": "^0.1.2",
 		"frame-master-plugin-env-in-html": "^0.1.2",
 		"frame-master-plugin-image-optimizer": "^0.1.0",
 		"frame-master-plugin-react-to-html": "^1.0.7",

@@ -4,6 +4,12 @@ type SiteConfigType = {
 	/** Base URL of the website. Required for sitemap index generation. Example: https://example.com */
 	siteUrl: string;
 	SEO: SEOPluginOptions;
+	frameworkConfig: {
+		/**
+		 * @default [".tsx", ".jsx"]
+		 */
+		routesExtensions?: string[];
+	}
 };
 
 export default {
@@ -36,4 +42,7 @@ export default {
 			'<meta name="google-site-verification" content="your-verification-code">',
 		],
 	},
+	frameworkConfig: {
+		routesExtensions: [".tsx", ".jsx"],
+	}
 } satisfies SiteConfigType;

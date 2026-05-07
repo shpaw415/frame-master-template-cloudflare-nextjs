@@ -1,9 +1,9 @@
 "use dynamic";
 
-import { createLoader, createPageConfig } from "@next/ssr";
-import { useLoader } from "@next/ssr/hooks";
 import { DELETE as revalidate } from "@api/revalidate";
 import { usePath } from "@next/hooks/path";
+import { createLoader, createPageConfig } from "@next/ssr";
+import { useLoader } from "@next/ssr/hooks";
 
 // Per-page cache configuration — cache each user page for 60 seconds.
 // Remove or adjust ssr_configs to change TTL behaviour.
