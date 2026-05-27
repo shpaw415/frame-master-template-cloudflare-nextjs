@@ -1,6 +1,9 @@
 import { join } from "node:path";
 import { getBuilder } from "frame-master/build";
-import type { FrameMasterPlugin } from "frame-master/plugin";
+import type {
+	BuildOptionsPlugin,
+	FrameMasterPlugin,
+} from "frame-master/plugin";
 import {
 	directiveToolSingleton,
 	getGlobalPluginContext,
@@ -16,13 +19,12 @@ import CFActionPlugin from "frame-master-plugin-cloudflare-pages-functions-actio
 import CloudflareRouteFilePlugin from "frame-master-plugin-cloudflare-route-file-generator";
 import EnvInHTML from "frame-master-plugin-env-in-html";
 import imageOptimizer from "frame-master-plugin-image-optimizer";
+import NodePolyfills from "frame-master-plugin-node-polyfills";
 import ReactToHTML from "frame-master-plugin-react-to-html";
 import SEOPlugin from "frame-master-plugin-seo";
 import ServeFromBuild from "frame-master-plugin-serve-from-build";
 import TailwindPlugin from "frame-master-plugin-tailwind";
 import SVGLoader from "frame-master-svg-to-jsx-loader";
-import SiteConfig from "./site.config";
-import AsyncFallback from "./src/components/loading";
 import {
 	addStaticRoute,
 	collectStaticExcludeRules,
@@ -31,12 +33,9 @@ import {
 	isNonPageRoute,
 	markDynamicRoute,
 } from "./.frame-master/optimization/cloudflare_route/hoffman_coding";
+import SiteConfig from "./site.config";
+import AsyncFallback from "./src/components/loading";
 
-if (!process.env.WRANGLER_PORT && !isBuildMode()) {
-	throw new Error(
-		"Please see rename the .env.exemple file to .env and make sure WRANGLER_PORT is set to the port your Wrangler dev server will run on.",
-	);
-}
 const WranglerServerPort = Number(process.env.WRANGLER_PORT);
 
 const cwd = process.cwd();
@@ -83,12 +82,35 @@ const catchAllPatch: FrameMasterPlugin = {
 	},
 };
 
+const nodePolyfillPlugin = NodePolyfills();
+
 export default {
 	HTTPServer: {
 		port: 3000,
 	},
 	plugins: [
+		{
+			name: "dev-plugin",
+			version: "1.0.0",
+			fileSystemWatchDir: ["src"],
+			async onFileSystemChange(_ev, _fp, abs) {
+				const builder = getBuilder();
+				if (!abs.startsWith("src/") || builder?.isBuilding()) return;
+				await builder?.build();
+			},
+			serverStart: {
+				dev_main() {
+					if (!process.env.WRANGLER_PORT && !isBuildMode()) {
+						console.error(
+							"Please see rename the .env.exemple file to .env and make sure WRANGLER_PORT is set to the port your Wrangler dev server will run on.",
+						);
+						process.exit(1);
+					}
+				},
+			},
+		},
 		catchAllPatch,
+		nodePolyfillPlugin,
 		ApplyReact({
 			route: "src/pages",
 			clientShellPath: "src/client-shell.tsx",
@@ -165,6 +187,16 @@ export default {
 									},
 								},
 							},
+						);
+					},
+				},
+				{
+					name: "inject-node-polyfills",
+					version: "1.0.0",
+					createContext() {
+						getGlobalPluginContext("build-unifier")?.setBuildConfig?.(
+							"inject-node-polyfills",
+							nodePolyfillPlugin.build as BuildOptionsPlugin,
 						);
 					},
 				},
@@ -273,16 +305,6 @@ export default {
 				};
 			},
 		}),
-		{
-			name: "dev-plugin",
-			version: "1.0.0",
-			fileSystemWatchDir: ["src"],
-			async onFileSystemChange(_ev, _fp, abs) {
-				const builder = getBuilder();
-				if (!abs.startsWith("src/") || builder?.isBuilding()) return;
-				await builder?.build();
-			},
-		},
 		{
 			name: "proxy-to-wrangler",
 			version: "0.1.0",

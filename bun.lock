@@ -7,7 +7,7 @@
       "dependencies": {
         "@tailwindcss/cli": "^4.3.0",
         "frame-master": "^3.2.0",
-        "frame-master-plugin-apply-react": "^2.0.8",
+        "frame-master-plugin-apply-react": "^2.0.9",
         "frame-master-plugin-assets-to-build": "^0.1.1",
         "frame-master-plugin-auto-sitemap": "^0.1.0",
         "frame-master-plugin-build-unifier": "^1.0.0",
@@ -16,6 +16,7 @@
         "frame-master-plugin-cloudflare-route-file-generator": "^0.1.2",
         "frame-master-plugin-env-in-html": "^0.1.2",
         "frame-master-plugin-image-optimizer": "^0.1.0",
+        "frame-master-plugin-node-polyfills": "^0.1.0",
         "frame-master-plugin-react-to-html": "^1.0.7",
         "frame-master-plugin-seo": "^0.1.1",
         "frame-master-plugin-serve-from-build": "^1.1.1",
@@ -26,12 +27,12 @@
         "tailwindcss": "^4.3.0",
       },
       "devDependencies": {
-        "@cloudflare/workers-types": "^4.20260511.1",
+        "@cloudflare/workers-types": "^4.20260519.1",
         "@types/bun": "latest",
         "@types/react": "^19.2.14",
         "@types/react-dom": "^19.2.3",
         "typescript": "^5.9.3",
-        "wrangler": "^4.91.0",
+        "wrangler": "^4.93.0",
       },
     },
   },
@@ -409,6 +410,8 @@
     "frame-master-plugin-env-in-html": ["frame-master-plugin-env-in-html@0.1.2", "", { "peerDependencies": { "frame-master": "^3.0.0", "typescript": "^5" } }, "sha512-KGkMuaEdjVQvmQ73h9ZCy3izMYQlFvvLpv21Twl4Tbufh2C5GK3k7BOWmJ2cT4smYyleqsDQzBMc6PtSCqOipg=="],
 
     "frame-master-plugin-image-optimizer": ["frame-master-plugin-image-optimizer@0.1.0", "", { "dependencies": { "sharp": "^0.34.5" }, "peerDependencies": { "frame-master": "^3.0.2", "typescript": "^5" } }, "sha512-N189Tsccp1A/ZYY/zz0nS6Qgyxv0CW8zjTnV6M/MW9zfxOvlkvIgTGsgPtA9amfGPdMworBTSnYfmTi5ndPGDw=="],
+
+    "frame-master-plugin-node-polyfills": ["frame-master-plugin-node-polyfills@0.1.0", "", { "dependencies": { "unenv": "v2.0.0-rc.24" }, "peerDependencies": { "frame-master": "^3.2.0", "typescript": "^5" } }, "sha512-6nA4R72wig7mfzP3V8my/tTXMlR835ohMirbttTW5LU02zMDO9ILQTu0kjL+OC5dpfxyhNsSLaA1g1aemALZ3Q=="],
 
     "frame-master-plugin-react-to-html": ["frame-master-plugin-react-to-html@1.0.7", "", { "peerDependencies": { "frame-master": "^3.1.1", "react": "^19.2.0", "react-dom": "^19.2.0", "typescript": "^5.9.3" } }, "sha512-qV6Xzy2BgCV0HZlE6/blslP671W7KhFPAFercw/NR7vZygSFkdjhIkbpKLQGC6CdXwO+x8blHovx7fj4LGs+2A=="],
 
