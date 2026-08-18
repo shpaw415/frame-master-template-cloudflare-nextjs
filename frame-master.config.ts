@@ -5,15 +5,15 @@ import type {
 	FrameMasterPlugin,
 } from "frame-master/plugin";
 import {
+	BuildUnifier,
 	directiveToolSingleton,
 	getGlobalPluginContext,
-} from "frame-master/plugin/utils";
+} from "frame-master/plugin";
 import type { FrameMasterConfig } from "frame-master/server/types";
 import { isBuildMode, isProd } from "frame-master/utils";
 import ApplyReact from "frame-master-plugin-apply-react/plugin";
 import AssetsToBuild from "frame-master-plugin-assets-to-build";
 import AutoSiteMap from "frame-master-plugin-auto-sitemap";
-import buildUnifier from "frame-master-plugin-build-unifier";
 import SSRPlugin from "frame-master-plugin-cloudflare-pages-dynamic-ssr";
 import CFActionPlugin from "frame-master-plugin-cloudflare-pages-functions-action";
 import CloudflareRouteFilePlugin from "frame-master-plugin-cloudflare-route-file-generator";
@@ -25,6 +25,7 @@ import SEOPlugin from "frame-master-plugin-seo";
 import ServeFromBuild from "frame-master-plugin-serve-from-build";
 import TailwindPlugin from "frame-master-plugin-tailwind";
 import SVGLoader from "frame-master-svg-to-jsx-loader";
+import { renderToString } from "react-dom/server";
 import {
 	addStaticRoute,
 	collectStaticExcludeRules,
@@ -34,6 +35,7 @@ import {
 	markDynamicRoute,
 } from "./.frame-master/optimization/cloudflare_route/hoffman_coding";
 import SiteConfig from "./site.config";
+import NotFound from "./src/components/404";
 import AsyncFallback from "./src/components/loading";
 
 const WranglerServerPort = Number(process.env.WRANGLER_PORT);
@@ -88,6 +90,9 @@ export default {
 	HTTPServer: {
 		port: 3000,
 	},
+	pluginsOptions: {
+		skipRequirementsCheck: true,
+	},
 	plugins: [
 		{
 			name: "dev-plugin",
@@ -134,7 +139,8 @@ export default {
 				/.*loading\.(tsx|jsx)$/,
 			],
 		}),
-		...buildUnifier({
+		...BuildUnifier({
+			label: "cloudflare-pages-functions",
 			plugins: [
 				CFActionPlugin({
 					actionBasePath: "src/actions",
@@ -152,11 +158,9 @@ export default {
 				{
 					name: "env-vars-in-build",
 					version: "1.0.0",
-					build: {
-						buildConfig: {
-							entrypoints: ["@cf-process-env.js"],
-							files: {
-								"@cf-process-env.js": `
+					virtualModules: {
+						"@cf-process-env.js": {
+							contents: `
 								globalThis.process ??= {}; process.env ??= ${JSON.stringify({
 									NODE_ENV: process.env.NODE_ENV,
 									...Object.fromEntries(
@@ -165,29 +169,9 @@ export default {
 										),
 									),
 								})};`,
-							},
+							injectRuntime: true,
+							loader: "js",
 						},
-					},
-				},
-				{
-					name: "inject-virtual-module",
-					version: "1.0.0",
-					createContext() {
-						getGlobalPluginContext("build-unifier")?.setBuildConfig?.(
-							"inject-virtual-module",
-							{
-								buildConfig: {
-									files: {
-										"@apply-react/client-routes.ts": "export default {};",
-										"@apply-react/HMR-enabled.ts": `export default false;`,
-										"@apply-react/404.tsx":
-											"export default () => <div>404 Not Found</div>;",
-										"@apply-react/loading.tsx":
-											"export default () => <div>Loading...</div>;",
-									},
-								},
-							},
-						);
 					},
 				},
 				{
@@ -352,12 +336,19 @@ export default {
 			version: "1.0.0",
 			build: {
 				buildConfig: {
+					entrypoints: ["404.html"],
 					minify: isProd(),
 					splitting: true,
 					naming: {
-						chunk: "chunks/chunk-[hash].[ext]",
 						asset: "[dir]/[name].[ext]",
 					},
+				},
+			},
+			virtualModules: {
+				"404.html": {
+					contents: renderToString(NotFound()),
+					loader: "html",
+					injectRuntime: false,
 				},
 			},
 		},
