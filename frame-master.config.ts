@@ -8,7 +8,6 @@ import {
 	BuildUnifier,
 	directiveToolSingleton,
 	getBuildUnifierContext,
-	getGlobalPluginContext,
 } from "frame-master/plugin";
 import type { FrameMasterConfig } from "frame-master/server/types";
 import { isBuildMode, isProd } from "frame-master/utils";
