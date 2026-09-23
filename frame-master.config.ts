@@ -7,6 +7,7 @@ import type {
 import {
 	BuildUnifier,
 	directiveToolSingleton,
+	getBuildUnifierContext,
 	getGlobalPluginContext,
 } from "frame-master/plugin";
 import type { FrameMasterConfig } from "frame-master/server/types";
@@ -17,6 +18,7 @@ import AutoSiteMap from "frame-master-plugin-auto-sitemap";
 import SSRPlugin from "frame-master-plugin-cloudflare-pages-dynamic-ssr";
 import CFActionPlugin from "frame-master-plugin-cloudflare-pages-functions-action";
 import CloudflareRouteFilePlugin from "frame-master-plugin-cloudflare-route-file-generator";
+import cloudflareUpdateManager from "frame-master-plugin-cloudflare-update-manager";
 import EnvInHTML from "frame-master-plugin-env-in-html";
 import imageOptimizer from "frame-master-plugin-image-optimizer";
 import NodePolyfills from "frame-master-plugin-node-polyfills";
@@ -85,6 +87,15 @@ const catchAllPatch: FrameMasterPlugin = {
 };
 
 const nodePolyfillPlugin = NodePolyfills();
+const imageOptimizerPlugin = imageOptimizer({
+	input: "images",
+	output: "optimized",
+	skipExisting: true,
+	formats: ["webp"],
+	keepOriginal: true,
+	sizes: [320, 720, 1280],
+});
+const svgLoaderPlugin = SVGLoader();
 
 export default {
 	HTTPServer: {
@@ -178,12 +189,42 @@ export default {
 					name: "inject-node-polyfills",
 					version: "1.0.0",
 					createContext() {
-						getGlobalPluginContext("build-unifier")?.setBuildConfig?.(
+						getBuildUnifierContext()?.setBuildConfig?.(
 							"inject-node-polyfills",
 							nodePolyfillPlugin.build as BuildOptionsPlugin,
 						);
 					},
 				},
+				{
+					name: "image-optimizer-cloudflare",
+					version: "1.0.0",
+					createContext() {
+						getBuildUnifierContext()?.setBuildConfig?.(
+							"image-optimizer-cloudflare",
+							imageOptimizerPlugin.build as BuildOptionsPlugin,
+						);
+					},
+				},
+				{
+					name: "svg-loader-cloudflare",
+					version: "1.0.0",
+					createContext() {
+						getBuildUnifierContext()?.setBuildConfig?.(
+							"svg-loader-cloudflare",
+							svgLoaderPlugin.build as BuildOptionsPlugin,
+						);
+					},
+				},
+				...(isProd()
+					? [
+							cloudflareUpdateManager({
+								paths: {
+									notFound: () => renderToString(NotFound()),
+									actionBasePath: "src/actions",
+								},
+							}),
+						]
+					: []),
 			],
 		}),
 		ServeFromBuild({
@@ -203,15 +244,8 @@ export default {
 				runtime: "bun",
 			},
 		}),
-		imageOptimizer({
-			input: "images",
-			output: "optimized",
-			skipExisting: true,
-			formats: ["webp"],
-			keepOriginal: true,
-			sizes: [320, 720, 1280],
-		}),
-		SVGLoader(),
+		imageOptimizerPlugin,
+		svgLoaderPlugin,
 		AssetsToBuild({
 			paths: [
 				{
@@ -237,106 +271,11 @@ export default {
 			baseUrl: SiteConfig.siteUrl,
 			authorizedExtensions: ["html"],
 		}),
-		CloudflareRouteFilePlugin({
-			routeOptions: () => {
-				const dynamicFilePath = new Set(
-					directiveToolSingleton
-						.getFromDirective("use-dynamic")
-						.map((directive) => directive.path),
-				);
-				const routeTree = createRouteTreeNode();
-
-				const routes = Object.entries(
-					new Bun.FileSystemRouter({
-						dir: "src/pages",
-						fileExtensions: SiteConfig.frameworkConfig.routesExtensions,
-						style: "nextjs",
-					}).routes,
-				).sort(([leftPath], [rightPath]) => leftPath.localeCompare(rightPath));
-
-				for (const [pathname, filePath] of routes) {
-					if (isNonPageRoute(pathname)) continue;
-
-					if (
-						dynamicFilePath.has(filePath) ||
-						DYNAMIC_ROUTE_SEGMENT_PATTERN.test(pathname)
-					) {
-						markDynamicRoute(routeTree, pathname);
-						continue;
-					}
-
-					addStaticRoute(routeTree, pathname);
-				}
-
-				const excludedStaticRoutes = collectStaticExcludeRules(routeTree).sort(
-					(leftPath, rightPath) => leftPath.localeCompare(rightPath),
-				);
-
-				return {
-					version: 1,
-					include: ["/*"],
-					exclude: [
-						...excludedStaticRoutes,
-						"/optimized/*",
-						"/static/*",
-						"/assets/*",
-						"/favicon.ico",
-						"/robots.txt",
-						"/@cf-process-env.js",
-						"/@dynamic-ssr-endpoints.js",
-						"/chunks/*",
-					],
-				};
-			},
-		}),
-		{
-			name: "proxy-to-wrangler",
-			version: "0.1.0",
-			serverConfig: {
-				routes: {
-					"/*": async (req) => {
-						const url = new URL(req.url);
-						url.port = String(WranglerServerPort);
-						url.hostname = "127.0.0.1";
-						const headers = new Headers(req.headers);
-						headers.set("host", `127.0.0.1:${WranglerServerPort}`);
-						headers.delete("accept-encoding");
-						const hasBody =
-							req.method !== "GET" &&
-							req.method !== "HEAD" &&
-							req.body !== null;
-						try {
-							const response = await fetch(url, {
-								method: req.method,
-								headers,
-								body: hasBody ? req.body : undefined,
-								redirect: "manual",
-							});
-							response.headers.delete("content-encoding");
-							return response;
-						} catch {
-							return new Response("Bad Gateway: upstream unavailable", {
-								status: 502,
-							});
-						}
-					},
-				},
-			},
-			build: {
-				buildConfig: {
-					splitting: true,
-				},
-			},
-			async serverReady({ builder }) {
-				await builder.build();
-			},
-		},
 		{
 			name: "optimization-plugin",
 			version: "1.0.0",
 			build: {
 				buildConfig: {
-					entrypoints: ["404.html"],
 					minify: isProd(),
 					splitting: true,
 					naming: {
@@ -344,13 +283,109 @@ export default {
 					},
 				},
 			},
-			virtualModules: {
-				"404.html": {
-					contents: renderToString(NotFound()),
-					loader: "html",
-					injectRuntime: false,
-				},
-			},
 		},
+		...(isProd()
+			? ([
+					CloudflareRouteFilePlugin({
+						routeOptions: () => {
+							const dynamicFilePath = new Set(
+								directiveToolSingleton
+									.getFromDirective("use-dynamic")
+									.map((directive) => directive.path),
+							);
+							const routeTree = createRouteTreeNode();
+
+							const routes = Object.entries(
+								new Bun.FileSystemRouter({
+									dir: "src/pages",
+									fileExtensions: SiteConfig.frameworkConfig.routesExtensions,
+									style: "nextjs",
+								}).routes,
+							).sort(([leftPath], [rightPath]) =>
+								leftPath.localeCompare(rightPath),
+							);
+
+							for (const [pathname, filePath] of routes) {
+								if (isNonPageRoute(pathname)) continue;
+
+								if (
+									dynamicFilePath.has(filePath) ||
+									DYNAMIC_ROUTE_SEGMENT_PATTERN.test(pathname)
+								) {
+									markDynamicRoute(routeTree, pathname);
+									continue;
+								}
+
+								addStaticRoute(routeTree, pathname);
+							}
+
+							const excludedStaticRoutes = collectStaticExcludeRules(
+								routeTree,
+							).sort((leftPath, rightPath) =>
+								leftPath.localeCompare(rightPath),
+							);
+
+							return {
+								version: 1,
+								include: ["/*"],
+								exclude: [
+									...excludedStaticRoutes,
+									"/optimized/*",
+									"/static/*",
+									"/assets/*",
+									"/favicon.ico",
+									"/robots.txt",
+									"/@cf-process-env.js",
+									"/@dynamic-ssr-endpoints.js",
+									"/chunks/*",
+								],
+							};
+						},
+					}),
+				] as Array<FrameMasterPlugin>)
+			: ([
+					{
+						name: "proxy-to-wrangler",
+						version: "0.1.0",
+						serverConfig: {
+							routes: {
+								"/*": async (req) => {
+									const url = new URL(req.url);
+									url.port = String(WranglerServerPort);
+									url.hostname = "127.0.0.1";
+									const headers = new Headers(req.headers);
+									headers.set("host", `127.0.0.1:${WranglerServerPort}`);
+									headers.delete("accept-encoding");
+									const hasBody =
+										req.method !== "GET" &&
+										req.method !== "HEAD" &&
+										req.body !== null;
+									try {
+										const response = await fetch(url, {
+											method: req.method,
+											headers,
+											body: hasBody ? req.body : undefined,
+											redirect: "manual",
+										});
+										response.headers.delete("content-encoding");
+										return response;
+									} catch {
+										return new Response("Bad Gateway: upstream unavailable", {
+											status: 502,
+										});
+									}
+								},
+							},
+						},
+						build: {
+							buildConfig: {
+								splitting: true,
+							},
+						},
+						async serverReady({ builder }) {
+							await builder.build();
+						},
+					},
+				] as Array<FrameMasterPlugin>)),
 	],
 } satisfies FrameMasterConfig;
