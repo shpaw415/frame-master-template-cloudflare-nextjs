@@ -23,12 +23,16 @@
 		"noUnusedParameters": false,
 		"noPropertyAccessFromIndexSignature": false,
 		"types": [
+			"./node_modules/frame-master-plugin-apply-react/src/types.d.ts",
 			"frame-master-plugin-image-optimizer/types",
 			"./worker-configuration.d.ts",
 			"frame-master-plugin-cloudflare-pages-dynamic-ssr/types",
 			"@cloudflare/workers-types"
 		],
 		"paths": {
+			"frame-master/server/type": [
+				"./node_modules/frame-master/src/server/type.ts"
+			],
 			"@images/*": [
 				"./images/*"
 			],

@@ -32,10 +32,17 @@ The framework is plugin-based. All build behavior — SSR, hydration, Tailwind c
 bun dev              # Start Frame Master dev server (http://localhost:3000) — proxies to Wrangler
 bun run build        # Production build → .frame-master/build
 bun run build:dev    # Dev-mode build  → .frame-master/build
+bun run typecheck    # tsc --noEmit gate over template code
 bun frame-master init  # First-time initialization (run once after clone)
 ```
 
 > Frame Master's dev server proxies all requests to Wrangler so Cloudflare bindings (KV, D1, R2, etc.) and Pages Functions are available during development. The port must match `WRANGLER_PORT` in `.env`.
+
+---
+
+## Typechecking
+
+`bun run typecheck` is the type gate: it runs `tsc --noEmit` and fails on any error in template-owned code (`src/`, config files). Errors reported inside `node_modules/` are printed but do not fail the gate — plugins and `frame-master` ship raw `.ts` sources that the program follows into, and one known strictness error in `frame-master`'s own internals (a `globalThis` index access whose `declare global` augmentation tsc never reaches due to circular imports) cannot be fixed from this repo. Everything the template itself owns must typecheck clean. `bun run build` remains the deploy gate — CI must pass both `bun run typecheck` and `bun run build`.
 
 ---
 
